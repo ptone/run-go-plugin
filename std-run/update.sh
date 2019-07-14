@@ -51,7 +51,7 @@ usage(){
 
 example:
 
-PLUGIN_BUCKET=project-plugins HARNESS_URL=https://dev-harness-azzzzzzz-uc.a.run.app ${name}
+HARNESS_URL=https://dev-harness-azzzzzzz-uc.a.run.app
 
 EOF
 
@@ -60,25 +60,29 @@ EOF
 
 main(){
 
-    if [[ -z "$PLUGIN_BUCKET" ]] ; then
-        usage
-    fi
     if [[ -z "$HARNESS_URL" ]] ; then
         usage
     fi
+    while true; do
+        tmpfile=$(mktemp /tmp/build-XXXXXX)
+        echo "building update"
+        docker build -q -t build-tmp .
+        id=$(docker create build-tmp)
+        docker cp $id:/app $tmpfile
+        docker rm -v $id
+        # sleep 1
+        # go build -o $tmpfile *.go
 
-    tmpfile=$(mktemp /tmp/plugin-XXXXXX.so)
-    echo "building updated plugin"
-    # note it is important to build plugins from command line file arguments
-    # instead of implicit package, or you may hit https://github.com/golang/go/issues/31048
-    go build -v -buildmode=plugin -o $tmpfile *.go
+        echo "uploading"
+        curl --header "Content-Type:application/octet-stream" \
+        --data-binary @$tmpfile \
+        $HARNESS_URL/_upload
 
-    echo "uploading"
-    gsutil cp $tmpfile gs://ptone-misc-run-plugin/plugin.so
-    rm $tmpfile
+        # rm $tmpfile
 
-    echo "reloading"
-    curl $HARNESS_URL/_reload
+        echo "Ready - waiting for next change"
+        inotifywait -q -r -e modify `pwd`
+    done
 }
 
 main "$@"

@@ -38,7 +38,6 @@ build and deploy the harness
     --image gcr.io/$PROJECT/go-harness \
     --allow-unauthenticated \
     --platform managed \
-    --set-env-vars=PLUGIN_BUCKET=$PLUGIN_BUCKET \
     --region us-central1
 
     export HARNESS_URL=$(gcloud alpha run services describe dev-harness --region us-central1 --format='value(status.address.url)')
