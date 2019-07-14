@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"plugin"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -48,6 +49,7 @@ func init() {
 	}
 	err = loadPlugin()
 	if err != nil {
+		log.Print(err.Error())
 		handlerFunc = errorHandler
 	}
 }
@@ -70,6 +72,7 @@ func loadPlugin() error {
 
 	defer rc.Close()
 	dir, err := ioutil.TempDir(os.TempDir(), "plugin-")
+	log.Print(dir)
 	if err != nil {
 		return err
 	}
@@ -87,7 +90,13 @@ func loadPlugin() error {
 	}
 	p, err := plugin.Open(pluginPath)
 	if err != nil {
-		return err
+		if strings.Contains(err.Error(), "already loaded") {
+			// no change to the plugin
+			log.Print("No change to plugin")
+			return nil
+		} else {
+			return err
+		}
 	}
 
 	h, err := p.Lookup("Handler")
@@ -118,6 +127,7 @@ func startServer() {
 			if err.Error() != "http: Server closed" {
 				log.Fatal(err)
 			}
+			log.Print(err.Error())
 		}
 	}()
 
@@ -143,6 +153,7 @@ func reloader(w http.ResponseWriter, r *http.Request) {
 	log.Print("reloading...")
 	err := loadPlugin()
 	if err != nil {
+		log.Print(err.Error())
 		handlerFunc = errorHandler
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, "no plugin found")

@@ -80,3 +80,5 @@ main(){
     echo "reloading"
     curl $HARNESS_URL/_reload
 }
+
+main "$@"
