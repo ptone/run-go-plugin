@@ -35,23 +35,25 @@ usage(){
             $> gcloud config set project [PROJECT_ID]
 
         This script performs the following steps: 
-        - builds the current golang package as a plugin 
-        - uploads the .so file to a GCS bucket
-        - Triggers a harness function to pull and load that plugin
+        - builds the current golang package as a Docker container
+        - Extracts the binary from the container
+        - Uploads the new binary to an existing harness function which runs it in a new process
 
-        The package must expose an httpHandler Func named "Handler" e.g.
+        The server must respect the port environment variable and not be hardcoded to Cloud Run's 8080
+        This is because the dev harness runs it at 6060 and proxies 8080
 
-            func Handler(w http.ResponseWriter, r *http.Request)
-
-        You need to set two environment variables:
+        You need to set the environment variable:
 
 
-            PLUGIN_BUCKET - name of the GCS bucket (no gs:// scheme)
             HARNESS_URL - the base URL of the harness
+        
+        This is most easily done with
+
+            export HARNESS_URL=\$(gcloud alpha run services describe dev-harness --region us-central1 --format='value(status.address.url)')
 
 example:
 
-HARNESS_URL=https://dev-harness-azzzzzzz-uc.a.run.app
+HARNESS_URL=https://dev-harness-azzzzzzz-uc.a.run.app ${name}
 
 EOF
 
@@ -63,25 +65,54 @@ main(){
     if [[ -z "$HARNESS_URL" ]] ; then
         usage
     fi
+    src_changed=0
     while true; do
-        tmpfile=$(mktemp /tmp/build-XXXXXX)
-        echo "building update"
-        docker build -q -t build-tmp .
-        id=$(docker create build-tmp)
-        docker cp $id:/app $tmpfile
-        docker rm -v $id
-        # sleep 1
-        # go build -o $tmpfile *.go
+        echo "------------ Waiting for src changes"
 
-        echo "uploading"
-        curl --header "Content-Type:application/octet-stream" \
-        --data-binary @$tmpfile \
-        $HARNESS_URL/_upload
+        changes=$(inotifywait -q -r -e modify `pwd`)
+        
+        while read path action file; do
+            echo $file
+            if [[ "$file" =~ .*go$ ]]; then # src file?
+                src_changed=1
+            fi
+        done <<< "$changes"
 
-        # rm $tmpfile
+        if [[ $src_changed == 1 ]]; then
+            start=`date +%s`
+            tmpfile=$(mktemp /tmp/build-XXXXXX)
 
-        echo "Ready - waiting for next change"
-        inotifywait -q -r -e modify `pwd`
+            echo
+            echo "------------ building update with Docker"
+            marker=$(mktemp ./.dirty-XXXXXX)
+            # sleep 1
+            # docker build -q -t build-tmp .
+            docker build -t build-tmp .
+
+            echo
+            echo "------------ extracting binary"
+            id=$(docker create build-tmp)
+            docker cp $id:/app $tmpfile
+            docker rm -v $id
+            rm $marker
+            # go build -o $tmpfile *.go
+            echo
+            echo "------------ uploading"
+            curl --header "Content-Type:application/octet-stream" \
+            --data-binary @$tmpfile \
+            $HARNESS_URL/_upload
+
+            rm $tmpfile
+
+            end=`date +%s`
+            runtime=$((end-start))
+            src_changed=0
+            echo
+            echo "------------ Done in $runtime seconds"
+            echo
+            echo $HARNESS_URL
+            echo
+        fi
     done
 }
 
