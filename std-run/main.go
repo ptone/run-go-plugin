@@ -20,14 +20,13 @@ import (
 	"os"
 )
 
-// For this experiment/sample, you must export the root handler, and it must be named "Handler"
 func Handler(w http.ResponseWriter, r *http.Request) {
 	log.Print("Hello world received a request.")
 	target := os.Getenv("TARGET")
 	if target == "" {
 		target = "World"
 	}
-	fmt.Fprintf(w, "Hello yaarr %s!\n", target)
+	fmt.Fprintf(w, "Hello %s!\n", target)
 }
 
 func main() {
