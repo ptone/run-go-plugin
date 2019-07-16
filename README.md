@@ -6,7 +6,7 @@
 
 ## Introduction
 
-This is an experiment in using [Go Plugins][] to allow server side "hot reloading" of code in development. While this was a learning experience for [Go Plugins][] I'm now writing this off as a failed experiment due to the caveats mentions below (mostly related to brittle plugin binary) 
+This is an experiment in using [Go Plugins][] to allow server side "hot reloading" of code in development. While this was a learning experience for [Go Plugins][] I'm now writing this off as a **failed** experiment due to the caveats mentions below (mostly related to brittle plugin binary). There is another failed experiment in the "restart" branch on this repo. This used a process wrapper/proxy to reload the full binary. While hello-world refreshes were ~25s, full container-build, deploy loops were only 40s.
 
 [Cloud Run][] allows deployment of serverless functions in containers. In general a bias for fastest write-build-test loop would favor:
 
